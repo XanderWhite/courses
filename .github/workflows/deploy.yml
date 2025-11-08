@@ -25,7 +25,7 @@ jobs:
       run: |
         cd frontend
         npm install
-        DISABLE_ESLINT_PLUGIN=true REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} npm run build
+        DISABLE_ESLINT_PLUGIN=true REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} PUBLIC_URL=/projects/courses npm run build
 
     - name: Prepare deployment structure
       run: |
