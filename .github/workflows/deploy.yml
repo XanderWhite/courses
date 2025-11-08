@@ -24,6 +24,7 @@ jobs:
     - name: Build Frontend
       run: |
         cd frontend
+        npm install
         REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} npm run build
 
     - name: Deploy to server
