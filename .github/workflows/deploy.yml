@@ -40,6 +40,19 @@ jobs:
         host: ${{ secrets.HOSTING_HOST }}
         username: ${{ secrets.HOSTING_USER }}
         key: ${{ secrets.HOSTING_SSH_KEY }}
-        source: "deploy/*"
+        source: "deploy/"
         target: "xanderwhite_ru/public_html/projects/courses"
-        strip_components: 1
+        rm: true
+
+    - name: Fix structure on server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOSTING_HOST }}
+        username: ${{ secrets.HOSTING_USER }}
+        key: ${{ secrets.HOSTING_SSH_KEY }}
+        script: |
+          cd xanderwhite_ru/public_html/projects/courses
+          mv deploy/backend/* .
+          mv deploy/public public
+          rm -rf deploy
+          echo "✅ Structure fixed"
