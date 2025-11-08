@@ -26,8 +26,6 @@ jobs:
         cd frontend
         npm install
         DISABLE_ESLINT_PLUGIN=true REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} npm run build
-        # Копируем собранный index.html поверх старого
-        cp build/index.html ../public/index.html
 
     - name: Prepare deployment structure
       run: |
