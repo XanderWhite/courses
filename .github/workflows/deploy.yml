@@ -34,9 +34,16 @@ jobs:
         username: ${{ secrets.HOSTING_USER }}
         key: ${{ secrets.HOSTING_SSH_KEY }}
         script: |
-          # Создаём папку если её нет
           mkdir -p xanderwhite_ru/public_html/projects/courses
           cd xanderwhite_ru/public_html/projects/courses
+
+          # ДЕБАГ - проверяем какие файлы доступны
+          echo "=== GITHUB_WORKSPACE содержимое ==="
+          ls -la $GITHUB_WORKSPACE/
+          echo "=== backend содержимое ==="
+          ls -la $GITHUB_WORKSPACE/backend/
+          echo "=== frontend/build содержимое ==="
+          ls -la $GITHUB_WORKSPACE/frontend/build/
 
           # Удаляем старые файлы кроме .env
           ls -A | grep -v '.env' | xargs rm -rf
