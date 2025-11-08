@@ -32,7 +32,7 @@ const container = document.getElementById("root");
 if (container) {
   const root = createRoot(container);
   root.render(
-    <Router>
+    <Router basename={process.env.PUBLIC_URL || ''}>
       <ScrollToTop />
       <Routes>
         <Route
