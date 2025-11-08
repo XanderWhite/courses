@@ -37,22 +37,20 @@ jobs:
           mkdir -p xanderwhite_ru/public_html/projects/courses
           cd xanderwhite_ru/public_html/projects/courses
 
-          # ДЕБАГ - проверяем какие файлы доступны
-          echo "=== GITHUB_WORKSPACE содержимое ==="
-          ls -la $GITHUB_WORKSPACE/
+          # ДЕБАГ - проверяем из корня репозитория
+          echo "=== Текущая директория ==="
+          pwd
+          echo "=== Содержимое репозитория ==="
+          ls -la
           echo "=== backend содержимое ==="
-          ls -la $GITHUB_WORKSPACE/backend/
-          echo "=== frontend/build содержимое ==="
-          ls -la $GITHUB_WORKSPACE/frontend/build/
+          ls -la backend/
 
           # Удаляем старые файлы кроме .env
           ls -A | grep -v '.env' | xargs rm -rf
 
-          # Копируем файлы бэкенда
-          cp -r $GITHUB_WORKSPACE/backend/* .
+          # Копируем из корня репозитория
+          cp -r backend/* .
           rm -rf public
-
-          # Копируем сборку фронтенда в public
-          cp -r $GITHUB_WORKSPACE/frontend/build public
+          cp -r frontend/build public
 
           echo "✅ Deploy completed!"
