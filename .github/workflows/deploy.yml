@@ -27,30 +27,19 @@ jobs:
         npm install
         DISABLE_ESLINT_PLUGIN=true REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} npm run build
 
+    - name: Prepare deployment structure
+      run: |
+        mkdir -p deploy/backend deploy/public
+        cp -r backend/* deploy/backend/
+        cp -r frontend/build/* deploy/public/
+        rm -rf deploy/backend/public
+
     - name: Deploy to server
-      uses: appleboy/ssh-action@master
+      uses: appleboy/scp-action@v0.1.0
       with:
         host: ${{ secrets.HOSTING_HOST }}
         username: ${{ secrets.HOSTING_USER }}
         key: ${{ secrets.HOSTING_SSH_KEY }}
-        script: |
-          mkdir -p xanderwhite_ru/public_html/projects/courses
-          cd xanderwhite_ru/public_html/projects/courses
-
-          # ДЕБАГ - проверяем из корня репозитория
-          echo "=== Текущая директория ==="
-          pwd
-          echo "=== Содержимое репозитория ==="
-          ls -la
-          echo "=== backend содержимое ==="
-          ls -la backend/
-
-          # Удаляем старые файлы кроме .env
-          ls -A | grep -v '.env' | xargs rm -rf
-
-          # Копируем из корня репозитория
-          cp -r backend/* .
-          rm -rf public
-          cp -r frontend/build public
-
-          echo "✅ Deploy completed!"
+        source: "deploy/*"
+        target: "xanderwhite_ru/public_html/projects/courses"
+        strip_components: 1
