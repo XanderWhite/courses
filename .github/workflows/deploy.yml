@@ -2,9 +2,9 @@ name: Deploy Laravel + React to Production
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ hosting ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ hosting ]
 
 env:
   DEPLOY_PATH: xanderwhite_ru/public_html/projects/courses
