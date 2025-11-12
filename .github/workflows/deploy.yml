@@ -89,16 +89,20 @@ jobs:
     - name: Create production .env
       run: |
         cd deploy
-        # Создаем .env из примера (если нет существующего)
-        cp .env.example .env 2>/dev/null || echo ".env.example not found, using existing .env"
-
-        # Генерируем ключ приложения
-        php artisan key:generate --force --no-interaction
-
-        # Устанавливаем продакшен-настройки
-        echo "APP_DEBUG=false" >> .env
-        echo "APP_ENV=production" >> .env
-        echo "LOG_LEVEL=error" >> .env
+        # Если .env уже существует - пропускаем создание
+        if [ ! -f .env ]; then
+          # Создаем .env из примера (если есть)
+          cp .env.example .env 2>/dev/null || echo ".env.example not found, creating basic .env"
+          # Если .env.example нет, создаем базовый .env
+          if [ ! -f .env ]; then
+            echo "APP_ENV=production" > .env
+            echo "APP_DEBUG=false" >> .env
+          fi
+          # Генерируем ключ приложения только для нового .env
+          php artisan key:generate --force --no-interaction
+        else
+          echo ".env already exists, skipping key generation"
+        fi
 
     - name: Optimize Laravel for production
       run: |
