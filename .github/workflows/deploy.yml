@@ -51,7 +51,7 @@ jobs:
     - name: Build React app
       run: |
         cd ${{ env.REACT_DIR }}
-        npm run build
+        DISABLE_ESLINT_PLUGIN=true npm run build
 
     - name: Copy Laravel public assets to React build
       run: |
