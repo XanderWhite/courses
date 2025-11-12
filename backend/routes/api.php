@@ -40,7 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [ReviewController::class, 'destroy']);
         Route::patch('/{id}/moderate', [ReviewController::class, 'moderate'])
             ->name('reviews.moderate');
-    }); 
+    });
 });
 
 Route::post('/login', [UserController::class, 'login']);
@@ -54,9 +54,9 @@ Route::prefix('courses')->group(function () {
         ->name('courses.showByUrl');
 
     Route::get('/{categoryUrl}/{subcategoryUrl}', [CourseController::class, 'index'])
-        ->name('courses.index');
+        ->name('courses.bySubcategory');
     Route::get('/{categoryUrl}', [CourseController::class, 'index'])
-        ->name('courses.index');
+        ->name('courses.byCategory');
 });
 Route::get('/schools/url/{url}', [SchoolController::class, 'showByUrl'])->name('schools.showByUrl');
 Route::get('/categories/url/{url}', [CategoryController::class, 'showByUrl']);
