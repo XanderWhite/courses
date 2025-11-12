@@ -1,12 +1,20 @@
-name: Deploy to Hosting
+name: Deploy Laravel + React to Production
 
 on:
   push:
-    branches: [ hosting ]
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DEPLOY_PATH: xanderwhite_ru/public_html/projects/courses
+  LARAVEL_DIR: backend
+  REACT_DIR: frontend
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -15,44 +23,180 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
+        coverage: none
 
-    - name: Install Backend Dependencies
-      run: |
-        cd backend
-        composer install --no-dev --optimize-autoloader
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ${{ env.REACT_DIR }}/package-lock.json
 
-    - name: Build Frontend
+    - name: Validate composer.json and composer.lock
+      run: cd ${{ env.LARAVEL_DIR }} && composer validate --strict
+
+    - name: Install Laravel dependencies
       run: |
-        cd frontend
-        npm install
-        DISABLE_ESLINT_PLUGIN=true REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} PUBLIC_URL=/projects/courses/public npm run build
+        cd ${{ env.LARAVEL_DIR }}
+        composer install --prefer-dist --no-progress --no-dev --optimize-autoloader
+      env:
+        COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+
+    - name: Install React dependencies
+      run: |
+        cd ${{ env.REACT_DIR }}
+        npm ci --prefer-offline --no-audit
+
+    - name: Build React app
+      run: |
+        cd ${{ env.REACT_DIR }}
+        npm run build
+
+    - name: Copy Laravel public assets to React build
+      run: |
+        # Копируем специфичные файлы из Laravel public в React build
+        cp ${{ env.LARAVEL_DIR }}/public/robots.txt ${{ env.REACT_DIR }}/build/
+        cp ${{ env.LARAVEL_DIR }}/public/.htaccess ${{ env.REACT_DIR }}/build/
+        cp ${{ env.LARAVEL_DIR }}/public/index.php ${{ env.REACT_DIR }}/build/
 
     - name: Prepare deployment structure
       run: |
-        mkdir -p deploy/backend deploy/public
-        cp -r backend/* deploy/backend/
-        cp -r frontend/build/* deploy/public/
-        rm -rf deploy/backend/public
+        # Создаем чистую директорию для деплоя
+        mkdir -p deploy
 
-    - name: Deploy to server
-      uses: appleboy/scp-action@v0.1.0
-      with:
-        host: ${{ secrets.HOSTING_HOST }}
-        username: ${{ secrets.HOSTING_USER }}
-        key: ${{ secrets.HOSTING_SSH_KEY }}
-        source: "deploy/"
-        target: "xanderwhite_ru/public_html/projects/courses"
-        rm: true
+        # Копируем только нужные файлы Laravel (исключая разработческие)
+        rsync -av \
+          --exclude='.env*' \
+          --exclude='.git*' \
+          --exclude='node_modules/' \
+          --exclude='tests/' \
+          --exclude='storage/app/public/*' \
+          --exclude='storage/logs/*' \
+          --exclude='storage/framework/cache/*' \
+          --exclude='storage/framework/sessions/*' \
+          --exclude='storage/framework/views/*' \
+          ${{ env.LARAVEL_DIR }}/ deploy/
 
-    - name: Fix structure on server
+        # Копируем React build в public директорию
+        cp -r ${{ env.REACT_DIR }}/build/* deploy/public/
+
+        # Создаем необходимые директории
+        mkdir -p deploy/storage/framework/{cache,sessions,views}
+        mkdir -p deploy/storage/logs
+        mkdir -p deploy/bootstrap/cache
+
+    - name: Create production .env
+      run: |
+        cd deploy
+        # Создаем .env из примера (если нет существующего)
+        cp .env.example .env 2>/dev/null || echo ".env.example not found, using existing .env"
+
+        # Генерируем ключ приложения
+        php artisan key:generate --force --no-interaction
+
+        # Устанавливаем продакшен-настройки
+        echo "APP_DEBUG=false" >> .env
+        echo "APP_ENV=production" >> .env
+        echo "LOG_LEVEL=error" >> .env
+
+    - name: Optimize Laravel for production
+      run: |
+        cd deploy
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+        php artisan event:cache
+
+    - name: Set proper permissions
+      run: |
+        cd deploy
+        find . -type f -exec chmod 644 {} \;
+        find . -type d -exec chmod 755 {} \;
+        chmod -R 775 storage
+        chmod -R 775 bootstrap/cache
+        # Убираем исполняемые права с .env для безопасности
+        chmod 640 .env
+
+    - name: Create deployment backup on server
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.HOSTING_HOST }}
         username: ${{ secrets.HOSTING_USER }}
         key: ${{ secrets.HOSTING_SSH_KEY }}
         script: |
-          cd xanderwhite_ru/public_html/projects/courses
-          mv deploy/backend/* .
-          mv deploy/public public
-          rm -rf deploy
-          echo "✅ Structure fixed"
+          cd ${{ env.DEPLOY_PATH }}
+          # Создаем backup текущей версии
+          tar -czf ../backup_$(date +%Y%m%d_%H%M%S).tar.gz .
+          # Сохраняем текущий .env и пользовательские файлы
+          cp .env ../.env.backup 2>/dev/null || true
+          cp -r storage/app/public/ ../storage_backup/ 2>/dev/null || true
+
+    - name: Rsync deployment to server
+      uses: burnett01/rsync-deployments@7.0.1
+      with:
+        switches: -avz --delete --chmod=Du=rwx,Dg=rx,Do=rx,Fu=rw,Fg=r,Fo=r --exclude='storage/app/public/*'
+        path: deploy/
+        remote_path: ${{ env.DEPLOY_PATH }}/
+        remote_host: ${{ secrets.HOSTING_HOST }}
+        remote_user: ${{ secrets.HOSTING_USER }}
+        remote_key: ${{ secrets.HOSTING_SSH_KEY }}
+
+    - name: Finalize deployment on server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOSTING_HOST }}
+        username: ${{ secrets.HOSTING_USER }}
+        key: ${{ secrets.HOSTING_SSH_KEY }}
+        script: |
+          cd ${{ env.DEPLOY_PATH }}
+
+          # Восстанавливаем оригинальный .env из backup
+          if [ -f ../.env.backup ]; then
+            cp ../.env.backup .env
+            rm ../.env.backup
+          fi
+
+          # Восстанавливаем пользовательские файлы
+          if [ -d ../storage_backup ]; then
+            cp -r ../storage_backup/* storage/app/public/ 2>/dev/null || true
+            rm -rf ../storage_backup
+          fi
+
+          # Устанавливаем правильные права на сервере
+          chmod 640 .env 2>/dev/null || true
+          chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
+          # Применяем миграции БД
+          php artisan migrate --force --no-interaction
+
+          # Очищаем и перекэшируем с правильным .env
+          php artisan config:clear
+          php artisan config:cache
+          php artisan route:clear
+          php artisan route:cache
+          php artisan view:clear
+          php artisan view:cache
+
+          # Устанавливаем симлинк для storage
+          php artisan storage:link
+
+          # Перезапускаем очереди
+          php artisan queue:restart
+
+          # Очищаем кэш приложения
+          php artisan optimize
+
+          echo "Deployment completed successfully!"
+
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -rf deploy
+        echo "Cleanup completed"
+
+    - name: Health check
+      run: |
+        sleep 30
+        curl -f ${{ secrets.APP_URL }}/projects/courses/ || echo "Health check completed with warning"
+      continue-on-error: true
